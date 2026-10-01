@@ -13,4 +13,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split rarely-changing vendor code into its own cacheable chunks.
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
+          react: ["react", "react-dom", "react-router-dom"],
+        },
+      },
+    },
+    // The Firebase SDK chunk is ~550 kB minified (~140 kB gzipped); that's expected.
+    chunkSizeWarningLimit: 650,
+  },
 });

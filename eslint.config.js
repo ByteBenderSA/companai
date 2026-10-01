@@ -5,13 +5,13 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "*.config.js", "*.config.ts"] },
+  { ignores: ["dist", "coverage", "playwright-report", "test-results", "*.config.js"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
+      ecmaVersion: 2022,
+      globals: { ...globals.browser, ...globals.node },
     },
     plugins: {
       "react-hooks": reactHooks,
@@ -19,16 +19,13 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": [
-        "warn",
-        { allowConstantExport: true },
-      ],
-      "@typescript-eslint/no-unused-vars": "off",
-      // TODO(oss-cleanup): tighten these back to "error" once the codebase is fully typed.
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-empty-object-type": "warn",
-      "prefer-const": "warn",
-      "no-useless-escape": "warn",
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
+  },
+  {
+    // shadcn/ui primitives export helpers alongside components by design.
+    files: ["src/components/ui/**"],
+    rules: { "react-refresh/only-export-components": "off" },
   }
 );
