@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
-import { getStorage } from 'firebase/storage';
+import { connectAuthEmulator, getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { connectFirestoreEmulator, initializeFirestore } from 'firebase/firestore';
+
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,15 +14,16 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const requiredKeys: (keyof typeof firebaseConfig)[] = [
-  'apiKey',
-  'authDomain',
-  'projectId',
-  'storageBucket',
-  'messagingSenderId',
-  'appId',
-];
+// Emulator mode always uses a "demo-" project, which Firebase guarantees never touches real
+// cloud resources — even if .env.local holds a real project's config.
+if (useEmulators) {
+  firebaseConfig.apiKey = 'demo-api-key';
+  firebaseConfig.authDomain = 'localhost';
+  firebaseConfig.projectId = 'demo-companai';
+  firebaseConfig.appId = 'demo-app-id';
+}
 
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'] as const;
 const missing = requiredKeys.filter((k) => !firebaseConfig[k]);
 if (missing.length > 0) {
   throw new Error(
@@ -33,9 +34,14 @@ if (missing.length > 0) {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const functions = getFunctions(app);
-export const storage = getStorage(app);
+// Optional fields are often undefined (e.g. a prompt section the AI left out);
+// drop them instead of letting Firestore reject the whole write.
+export const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+
+if (useEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8085);
+}
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });

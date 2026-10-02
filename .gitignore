@@ -17,6 +17,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Not secret: just points the app at the local emulators.
+!.env.emulators
 
 # Firebase
 .firebase/
@@ -37,3 +39,10 @@ firebase-debug.*.log
 
 # OS
 Thumbs.db
+
+# Tests
+coverage
+playwright-report
+test-results
+firestore-debug.log
+ui-debug.log

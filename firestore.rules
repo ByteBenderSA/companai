@@ -1,99 +1,76 @@
 rules_version = '2';
+
+// CompanAI security rules.
+// Every document belongs to exactly one signed-in user; nobody can read or write anyone else's data.
+// Field checks are deliberately light (types + size caps) — they stop abuse and accidents
+// without making legitimate edits brittle.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - users can only access their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Projects collection - users can only access their own projects
-    match /projects/{projectId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.ownerId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.ownerId;
-    }
-    
-    // Conversations collection - users can only access their own conversations
-    match /conversations/{conversationId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
-      
-      // Messages subcollection
-      match /messages/{messageId} {
-        allow read, write: if request.auth != null && 
-          request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId;
-        allow create: if request.auth != null && 
-          request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId;
-      }
-    }
-    
-    // Learning paths - public read access, authenticated users can track progress
-    match /learning-paths/{pathId} {
-      allow read: if true; // Public content
-      // Allow creation of essential learning paths, but prevent unauthorized modifications
-      allow create: if request.auth != null && 
-        pathId == 'tech-essentials' && 
-        request.resource.data.isPublic == true;
-      allow update, delete: if false; // Only admins can modify existing paths
-      
-      // User progress within learning paths
-      match /progress/{userId} {
-        allow read, write: if request.auth != null && 
-          request.auth.uid == userId;
-      }
-    }
-    
-    // Community features - authenticated users can read, owners can write
-    match /community/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.authorId;
-      allow update, delete: if request.auth != null && 
-        request.auth.uid == resource.data.authorId;
-        
-      // Comments on community posts
-      match /comments/{commentId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null && 
-          request.auth.uid == request.resource.data.authorId;
-        allow update, delete: if request.auth != null && 
-          request.auth.uid == resource.data.authorId;
-      }
-    }
-    
-    // Analytics - users can only write their own analytics data
-    match /analytics/{userId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == userId;
-    }
-    
-    // Public content like tutorials, templates - read-only for authenticated users
-    match /public-content/{contentId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Only admins can modify (via admin SDK)
-    }
-    
-    // User progress collection
-    match /userProgress/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Public collections (read-only for authenticated users)
-    match /templates/{templateId} {
-      allow read: if request.auth != null;
+
+    function signedIn() {
+      return request.auth != null;
     }
 
-    match /challenges/{challengeId} {
-      allow read: if request.auth != null;
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
-    
-    // Default deny all other requests
+
+    function shortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // users/{uid}: basic profile (name, email). Nothing privileged lives here.
+    match /users/{uid} {
+      allow read, delete: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt'])
+        && shortString(request.resource.data.get('name', ''), 100)
+        && shortString(request.resource.data.get('email', ''), 320);
+    }
+
+    // projects/{id}: a saved idea, its prompts and build progress.
+    match /projects/{projectId} {
+      function validProject(d) {
+        return shortString(d.title, 200)
+          && shortString(d.get('description', ''), 2000)
+          && d.get('features', []) is list && d.get('features', []).size() <= 30
+          && d.get('techStack', []) is list && d.get('techStack', []).size() <= 20
+          && d.get('completedSteps', []) is list && d.get('completedSteps', []).size() <= 10
+          && d.get('prompts', {}) is map
+          && shortString(d.get('prompts', {}).get('lovable', ''), 60000)
+          && shortString(d.get('prompts', {}).get('cursor', ''), 60000);
+      }
+
+      allow read, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validProject(request.resource.data);
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && validProject(request.resource.data);
+    }
+
+    // ideaDrafts/{uid}: the Idea Workshop's in-progress state (one per user).
+    match /ideaDrafts/{uid} {
+      allow read, delete: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.get('ideas', []) is list
+        && request.resource.data.get('ideas', []).size() <= 5;
+    }
+
+    // userProgress/{uid}: completed lesson ids.
+    match /userProgress/{uid} {
+      allow read, delete: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['completedLessons', 'updatedAt'])
+        && request.resource.data.get('completedLessons', []) is list
+        && request.resource.data.get('completedLessons', []).size() <= 50;
+    }
+
+    // Everything else is closed.
     match /{document=**} {
       allow read, write: if false;
     }
   }
-} 
+}
