@@ -1,115 +1,45 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  User,
-  signUpWithEmail,
-  signInWithEmail,
-  signInWithGoogle,
-  signOutUser,
-  onAuthStateChange
-} from '@/lib/auth';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { currentAppUser, onAuthChange, signOutUser, type AppUser } from '@/lib/auth';
 
 interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
+  /** null when signed out. */
+  user: AppUser | null;
+  /** True until Firebase has told us whether someone is signed in. */
   loading: boolean;
-  error: string | null;
+  logout: () => Promise<void>;
+  /** Re-read the signed-in user, e.g. after sign-up sets the display name. */
+  refreshUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+/** For pages behind ProtectedRoute, where a user is guaranteed. */
+// eslint-disable-next-line react-refresh/only-export-components
+export const useUser = (): AppUser => {
+  const { user } = useAuth();
+  if (!user) throw new Error('useUser must be used inside a ProtectedRoute');
+  return user;
+};
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChange((user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const user = await signInWithEmail(email, password);
-      setUser(user);
-    } catch (err: any) {
-      setError(err.message || 'Failed to log in');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signup = async (email: string, password: string, name: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const user = await signUpWithEmail(email, password, name);
-      setUser(user);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create account');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const user = await signInWithGoogle();
-      setUser(user);
-    } catch (err: any) {
-      setError(err.message || 'Failed to log in with Google');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      await signOutUser();
-      setUser(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to log out');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      signup, 
-      loginWithGoogle, 
-      logout, 
-      loading, 
-      error 
-    }}>
-      {children}
-    </AuthContext.Provider>
+  useEffect(
+    () =>
+      onAuthChange((u) => {
+        setUser(u);
+        setLoading(false);
+      }),
+    []
   );
+
+  return <AuthContext.Provider value={{ user, loading, logout: signOutUser, refreshUser: () => setUser(currentAppUser()) }}>{children}</AuthContext.Provider>;
 };
