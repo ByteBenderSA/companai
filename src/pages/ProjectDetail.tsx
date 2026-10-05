@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { usePageTitle } from '@/hooks/use-page-title';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -19,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { AppLayout } from '@/components/AppLayout';
+import { CopyButton } from '@/components/CopyButton';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { dataErrorMessage } from '@/lib/data-errors';
 import { IdeaCustomizationForm } from '@/components/IdeaCustomizationForm';
@@ -67,9 +69,57 @@ function RegenerateDialog({ project, open, onOpenChange }: { project: Project; o
   );
 }
 
-function BuildGuide({ project }: { project: Project }) {
+const TOOL = {
+  lovable: { name: 'Lovable', url: 'https://lovable.dev', open: 'Open Lovable' },
+  cursor: { name: 'Cursor', url: 'https://cursor.com', open: 'Get Cursor' },
+} as const;
+
+/** The one thing to do now: the next unfinished stage, with its prompt and tool one click away. */
+function NextUpCard({ project, onShowGuide }: { project: Project; onShowGuide: (step: BuildStepId) => void }) {
+  const index = BUILD_STEPS.findIndex((s) => !project.completedSteps.includes(s.id));
+  if (index === -1) {
+    return (
+      <Card className="border-green-200 bg-green-50" data-testid="next-up">
+        <CardContent className="flex flex-col gap-2 p-5">
+          <p className="text-sm font-semibold uppercase tracking-wide text-green-800">All four stages done 🎉</p>
+          <p className="text-green-900">Share your live link, add a README with a screenshot, and put it in your portfolio. Then plan a v2 feature with the mentor.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  const step = BUILD_STEPS[index];
+  const prompt = step.usesPrompt ? project.prompts[step.usesPrompt] : undefined;
+  const tool = step.usesPrompt ? TOOL[step.usesPrompt] : undefined;
+  return (
+    <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white" data-testid="next-up">
+      <CardContent className="space-y-3 p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+          Next up · Stage {index + 1} of {BUILD_STEPS.length}
+        </p>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{step.title}</h2>
+          <p className="text-sm text-gray-600">{step.summary}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {prompt && tool && <CopyButton text={prompt} label={`Copy ${tool.name} prompt`} variant="primary" />}
+          {tool && (
+            <Button size="sm" variant="outline" asChild>
+              <a href={tool.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-1.5 h-4 w-4" /> {tool.open}
+              </a>
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => onShowGuide(step.id)}>
+            Step-by-step guide ↓
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BuildGuide({ project, open, onOpenChange }: { project: Project; open: string; onOpenChange: (id: string) => void }) {
   const [pending, setPending] = useState<BuildStepId | null>(null);
-  const firstOpen = BUILD_STEPS.find((s) => !project.completedSteps.includes(s.id))?.id ?? BUILD_STEPS[0].id;
 
   const toggle = async (step: BuildStepId, done: boolean) => {
     setPending(step);
@@ -77,6 +127,11 @@ function BuildGuide({ project }: { project: Project }) {
       await setProjectStep(project, step, done);
       if (done && BUILD_STEPS.every((s) => s.id === step || project.completedSteps.includes(s.id))) {
         toast({ title: '🎉 Project complete!', description: 'Share your link and add it to your portfolio.' });
+      }
+      if (done) {
+        // Move straight on to the next unfinished stage.
+        const next = BUILD_STEPS.find((s) => s.id !== step && !project.completedSteps.includes(s.id));
+        if (next) onOpenChange(next.id);
       }
     } catch (err) {
       toast({ title: "Couldn't save", description: dataErrorMessage(err), variant: 'destructive' });
@@ -86,11 +141,11 @@ function BuildGuide({ project }: { project: Project }) {
   };
 
   return (
-    <Accordion type="single" collapsible defaultValue={firstOpen} className="space-y-3">
+    <Accordion type="single" collapsible value={open} onValueChange={onOpenChange} className="space-y-3">
       {BUILD_STEPS.map((step, i) => {
         const done = project.completedSteps.includes(step.id);
         return (
-          <AccordionItem key={step.id} value={step.id} className="rounded-lg border bg-white px-4" data-testid={`step-${step.id}`}>
+          <AccordionItem key={step.id} value={step.id} className="scroll-mt-20 rounded-lg border bg-white px-4" data-testid={`step-${step.id}`} id={`step-${step.id}`}>
             <AccordionTrigger className="gap-3 py-4 hover:no-underline">
               <span className="flex items-center gap-3 text-left">
                 <span
@@ -138,9 +193,24 @@ const ProjectDetail = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { project, loading, error } = useProject(projectId);
+  usePageTitle(project?.title ?? 'Project');
   const [regenOpen, setRegenOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mentorOpen, setMentorOpen] = useState(false);
+  const [openStep, setOpenStep] = useState('');
+
+  // Open the first unfinished stage when a project is first shown.
+  const loadedId = project?.id;
+  useEffect(() => {
+    if (!loadedId || !project) return;
+    setOpenStep(BUILD_STEPS.find((s) => !project.completedSteps.includes(s.id))?.id ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when a different project loads
+  }, [loadedId]);
+
+  const showGuide = (step: BuildStepId) => {
+    setOpenStep(step);
+    requestAnimationFrame(() => document.getElementById(`step-${step}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   const handleDelete = async () => {
     if (!project) return;
@@ -215,6 +285,8 @@ const ProjectDetail = () => {
           </div>
         </div>
 
+        <NextUpCard project={project} onShowGuide={showGuide} />
+
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <CardTitle className="text-xl">Your prompts</CardTitle>
@@ -238,7 +310,7 @@ const ProjectDetail = () => {
 
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Build guide</h2>
-          <BuildGuide project={project} />
+          <BuildGuide project={project} open={openStep} onOpenChange={setOpenStep} />
         </section>
 
         <div className="border-t pt-6">
