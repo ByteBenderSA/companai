@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { Link } from 'react-router-dom';
 import { FolderKanban, Lightbulb, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { useUser } from '@/contexts/AuthContext';
 import { useProjects } from '@/hooks/use-projects';
 
 const Projects = () => {
+  usePageTitle('Projects');
   const user = useUser();
   const { projects, loading, error } = useProjects(user.uid);
 

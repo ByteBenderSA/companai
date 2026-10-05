@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Github, KeyRound, Lightbulb, ListChecks, MessageSquare, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ const FEATURES = [
 ];
 
 const Landing = () => {
+  usePageTitle();
   const { user } = useAuth();
   const primary = user ? { to: '/dashboard', label: 'Go to dashboard' } : { to: '/signup', label: 'Get started — free' };
 

@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import { resetPassword, signInWithEmail, signInWithGoogle } from '@/lib/auth';
 import { authErrorMessage, isUserCancelled } from '@/lib/auth-errors';
 
 const Login = () => {
+  usePageTitle('Log in');
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';

@@ -1,8 +1,11 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
 
-const NotFound = () => (
+const NotFound = () => {
+  usePageTitle('Page not found');
+  return (
   <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gradient-to-br from-purple-50 via-white to-blue-50 p-4 text-center">
     <Logo />
     <h1 className="text-4xl font-bold text-gray-900">Page not found</h1>
@@ -12,5 +15,6 @@ const NotFound = () => (
     </Button>
   </div>
 );
+};
 
 export default NotFound;

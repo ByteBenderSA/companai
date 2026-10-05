@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -10,6 +11,7 @@ import { signInWithGoogle, signUpWithEmail } from '@/lib/auth';
 import { authErrorMessage, isUserCancelled } from '@/lib/auth-errors';
 
 const Signup = () => {
+  usePageTitle('Sign up');
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [name, setName] = useState('');

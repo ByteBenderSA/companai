@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
+import { ScrollToTop } from '@/components/ScrollToTop';
 import { FullPageSpinner, ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { SettingsDialogProvider } from '@/contexts/SettingsDialogContext';
@@ -18,6 +19,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 const App = () => (
   <AuthProvider>
     <BrowserRouter>
+      <ScrollToTop />
       <SettingsDialogProvider>
         <Suspense fallback={<FullPageSpinner />}>
           <Routes>
