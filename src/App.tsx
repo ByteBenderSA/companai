@@ -1,70 +1,43 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
-import Landing from "./pages/Landing";
-import Dashboard from "./pages/Dashboard";
-import IdeaWorkshop from "./pages/IdeaWorkshop";
-import Workspace from "./pages/Workspace";
-import Lessons from "./pages/Lessons";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import NotFound from "./pages/NotFound";
-import ProtectedRoute from "./components/ProtectedRoute";
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Toaster } from '@/components/ui/toaster';
+import { FullPageSpinner, ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { SettingsDialogProvider } from '@/contexts/SettingsDialogContext';
+import Landing from '@/pages/Landing';
 
-const queryClient = new QueryClient();
+const Login = lazy(() => import('@/pages/Login'));
+const Signup = lazy(() => import('@/pages/Signup'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const IdeaWorkshop = lazy(() => import('@/pages/IdeaWorkshop'));
+const Projects = lazy(() => import('@/pages/Projects'));
+const ProjectDetail = lazy(() => import('@/pages/ProjectDetail'));
+const Lessons = lazy(() => import('@/pages/Lessons'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+  <AuthProvider>
+    <BrowserRouter>
+      <SettingsDialogProvider>
+        <Suspense fallback={<FullPageSpinner />}>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/idea-workshop"
-              element={
-                <ProtectedRoute>
-                  <IdeaWorkshop />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/workspace"
-              element={
-                <ProtectedRoute>
-                  <Workspace />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/lessons"
-              element={
-                <ProtectedRoute>
-                  <Lessons />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+            <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/idea-workshop" element={<ProtectedRoute><IdeaWorkshop /></ProtectedRoute>} />
+            <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+            <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
+            <Route path="/lessons" element={<ProtectedRoute><Lessons /></ProtectedRoute>} />
+            {/* Old URL from earlier versions. */}
+            <Route path="/workspace" element={<Navigate to="/projects" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+        </Suspense>
+      </SettingsDialogProvider>
+    </BrowserRouter>
+    <Toaster />
+  </AuthProvider>
 );
 
 export default App;

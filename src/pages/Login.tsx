@@ -1,109 +1,106 @@
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, ArrowLeft } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useState, type FormEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { AuthLayout, GoogleIcon, OrDivider } from '@/components/AuthLayout';
+import { resetPassword, signInWithEmail, signInWithGoogle } from '@/lib/auth';
+import { authErrorMessage, isUserCancelled } from '@/lib/auth-errors';
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const { login, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const attempt = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
     try {
-      await login(email, password);
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in.",
-      });
-      navigate("/dashboard");
-    } catch (error) {
-      toast({
-        title: "Login failed",
-        description: "Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      await action();
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (!isUserCancelled(err)) setError(authErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void attempt(() => signInWithEmail(email, password));
+  };
+
+  const onForgot = async () => {
+    if (!email.trim()) {
+      setError('Type your email address above, then click "Forgot password?" again.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await resetPassword(email);
+      setNotice(`If an account exists for ${email.trim()}, a password reset link is on its way. Check your spam folder too.`);
+    } catch (err) {
+      setError(authErrorMessage(err));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center mb-8 text-purple-600 hover:text-purple-700">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to home
-        </Link>
-        
-        <Card className="shadow-xl border-0">
-          <CardHeader className="text-center pb-8">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Code className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                CompanAI
-              </span>
-            </div>
-            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-            <p className="text-gray-600">Continue your coding journey</p>
-          </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="mt-1"
-                  placeholder="your@email.com"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="mt-1"
-                  placeholder="Enter your password"
-                />
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                disabled={loading}
-              >
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
-            
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Don't have an account?{" "}
-                <Link to="/signup" className="text-purple-600 hover:text-purple-700 font-medium">
-                  Sign up
-                </Link>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Log in to keep building."
+      footer={
+        <>
+          Don't have an account?{' '}
+          <Link to="/signup" className="font-medium text-purple-700 hover:underline">
+            Sign up
+          </Link>
+        </>
+      }
+    >
+      <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => void attempt(signInWithGoogle)}>
+        <GoogleIcon /> Continue with Google
+      </Button>
+      <OrDivider />
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <button type="button" onClick={() => void onForgot()} className="text-xs font-medium text-purple-700 hover:underline" disabled={busy}>
+              Forgot password?
+            </button>
+          </div>
+          <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
+        {error && (
+          <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">
+            {notice}
+          </p>
+        )}
+        <Button type="submit" className="w-full bg-purple-600 text-white hover:bg-purple-700" disabled={busy}>
+          {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Log in
+        </Button>
+      </form>
+    </AuthLayout>
   );
 };
 
