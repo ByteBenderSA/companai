@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, CheckCircle2, Circle, Lightbulb, Loader2 } from 'lucide-react';
@@ -68,6 +69,7 @@ function Checklist({ items }: { items: ChecklistItem[] }) {
 }
 
 const Dashboard = () => {
+  usePageTitle('Dashboard');
   const user = useUser();
   const settings = useSettings();
   const openSettings = useOpenSettings();
@@ -123,7 +125,7 @@ const Dashboard = () => {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          {!loading && <Checklist items={checklist} />}
+          {!loading && !latest && <Checklist items={checklist} />}
 
           {loading ? (
             <div className="flex justify-center py-12" aria-label="Loading">
@@ -154,6 +156,9 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* With a project in progress, continuing it matters most; the checklist moves below. */}
+          {!loading && latest && <Checklist items={checklist} />}
 
           {projects.length > 1 && (
             <section className="space-y-3">
