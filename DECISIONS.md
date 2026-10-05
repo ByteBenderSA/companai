@@ -40,3 +40,13 @@ Reversible calls made during the bootcamp-readiness cleanup (October 2026), with
 - **Upgraded** Vite 5 → 7 and Firebase 11 → 12 (required by the test tooling). Removed ~30 unused dependencies and ~28 unused shadcn components.
 - **Code-split routes**; Gemini SDK, Markdown renderer and Firebase each load in their own chunks. First-load app code is ~35 kB gzipped plus cached vendor chunks.
 - **Tests:** 54 unit tests (pure logic), 18 Firestore rules tests (emulator), 16 Playwright e2e runs (8 journeys × phone + desktop, Gemini mocked at the network layer).
+
+## UX pass (after reviewing every screen on phone and desktop)
+
+- **"Next up" card on each project** names the next unfinished stage and puts that stage's prompt (Copy) and tool (Open) one click away. Ticking a stage opens the next one.
+- **A progress panel replaces the form while the AI works** (15–40 s), with rotating status lines, an elapsed-seconds counter and tips. It has no percentage bar, because we can't measure real progress and won't fake it.
+- **New pages start at the top** (the router kept the old scroll position) and every page sets its own browser-tab title.
+- **Mobile workshop:** the stepper shows "Step N of 4 · Name", and the layout and font options use two columns.
+- **Lessons:** "Complete & next lesson" is the primary action, and lesson cards are real links (keyboard and middle-click work).
+- **Dashboard:** once a student has a project, "Continue building" comes before the getting-started checklist.
+- Focus outlines on custom option buttons; animations respect `prefers-reduced-motion`.

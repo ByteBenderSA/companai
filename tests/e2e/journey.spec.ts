@@ -68,6 +68,14 @@ test.describe('student journey', () => {
     await page.getByRole('button', { name: 'Save project & start building' }).click();
     await expect(page).toHaveURL(/\/projects\/[\w-]+$/);
     await expect(page.getByRole('heading', { level: 1, name: 'StudyBuddy 1' })).toBeVisible();
+    await expect(page).toHaveTitle('StudyBuddy 1 · CompanAI');
+    // A new page starts at the top, not at the old scroll position.
+    expect(await page.evaluate(() => window.scrollY)).toBeLessThan(50);
+    // The next action is spelled out, with the right prompt one click away.
+    const nextUp = page.getByTestId('next-up');
+    await expect(nextUp).toContainText('Stage 1 of 4');
+    await expect(nextUp).toContainText('Build the UI in Lovable');
+    await expect(nextUp.getByRole('button', { name: 'Copy Lovable prompt' })).toBeVisible();
     await expect(page.getByTestId('lovable-prompt')).toContainText('LOVABLE_MARKER');
     await page.getByRole('tab', { name: /Cursor/ }).click();
     await expect(page.getByTestId('cursor-prompt')).toContainText('CURSOR_MARKER');
@@ -76,6 +84,9 @@ test.describe('student journey', () => {
     // Tick the first build stage; it persists across reloads
     await page.getByRole('checkbox', { name: /Build the UI in Lovable/ }).click();
     await expect(page.getByText('1 / 4 stages')).toBeVisible();
+    // Ticking a stage moves on: the next card updates and the GitHub stage opens.
+    await expect(nextUp).toContainText('Connect GitHub');
+    await expect(page.getByTestId('step-github').getByText('git clone', { exact: false })).toBeVisible();
     await page.reload();
     await expect(page.getByText('1 / 4 stages')).toBeVisible();
 
@@ -103,9 +114,12 @@ test.describe('student journey', () => {
 
     // Lessons: complete one → checklist done → it disappears
     await page.goto('/lessons');
-    await page.getByRole('button', { name: 'Start →' }).first().click();
-    await page.getByRole('button', { name: 'Mark lesson complete' }).click();
-    await expect(page.getByRole('button', { name: /Completed/ })).toBeVisible();
+    await page.getByTestId('lesson-card').first().click();
+    await expect(page).toHaveTitle(/Lovable/);
+    await page.getByRole('button', { name: 'Complete & next lesson' }).click();
+    await expect(page).toHaveURL(/lesson=github/);
+    await page.getByRole('button', { name: 'Previous' }).click();
+    await expect(page.getByText("You've completed this lesson.")).toBeVisible();
     await shot(page, '11-lesson');
     await page.goto('/dashboard');
     await expect(page.getByTestId('getting-started')).toHaveCount(0);
@@ -127,6 +141,23 @@ test.describe('errors and edge cases', () => {
     await expect(page.getByRole('alert')).toContainText('usage limit');
     await page.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByTestId('idea-card')).toHaveCount(3);
+  });
+
+  test('a progress panel is shown while the AI works', async ({ page }) => {
+    const gemini = await mockGemini(page);
+    await signUp(page);
+    await setKey(page);
+    await page.goto('/idea-workshop');
+    await page.getByLabel('App name *').fill('Slow');
+    await page.getByLabel('What does it do? *').fill('Checks the waiting state.');
+    gemini.delayNext(3000);
+    await page.getByRole('button', { name: 'Generate 3 project ideas' }).click();
+    const panel = page.getByTestId('generating');
+    await expect(panel).toContainText('Generating your project ideas');
+    await expect(panel).toBeInViewport();
+    await shot(page, '12-generating');
+    await expect(page.getByTestId('idea-card')).toHaveCount(3);
+    await expect(panel).toHaveCount(0);
   });
 
   test('a schema rejection falls back to plain JSON mode', async ({ page }) => {

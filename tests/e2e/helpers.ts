@@ -23,7 +23,7 @@ export const PROMPTS = {
 export const MENTOR_REPLY =
   'Here is **bold advice**.\n\n<img src=x onerror="window.__xss = true">\n\n```bash\nnpm install\n```\n\nSee [docs](https://firebase.google.com) or [bad](javascript:alert(1)).';
 
-type Behaviour = { failWith?: { status: number; message: string } };
+type Behaviour = { failWith?: { status: number; message: string }; delayMs?: number };
 
 /**
  * Mock the Gemini REST API. Every request is answered locally based on what was asked for.
@@ -37,6 +37,11 @@ export async function mockGemini(page: Page) {
     const url = route.request().url();
     const body = route.request().postData() ?? '';
     calls.push(url);
+    if (behaviour.delayMs) {
+      const ms = behaviour.delayMs;
+      behaviour.delayMs = undefined;
+      await new Promise((r) => setTimeout(r, ms));
+    }
 
     const key = route.request().headers()['x-goog-api-key'] ?? new URL(url).searchParams.get('key');
     if (key !== FAKE_KEY) {
@@ -69,6 +74,9 @@ export async function mockGemini(page: Page) {
 
   return {
     calls,
+    delayNext(ms: number) {
+      behaviour.delayMs = ms;
+    },
     failNext(status: number, message: string) {
       behaviour.failWith = { status, message };
     },
