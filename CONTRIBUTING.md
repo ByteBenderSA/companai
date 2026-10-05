@@ -14,20 +14,21 @@ Thanks for considering a contribution! This project is small and informal — he
 git clone https://github.com/ByteBenderSA/companai.git
 cd companai
 npm install
-cp .env.example .env.local   # fill in your Firebase values
-npm run dev
+npm run emulators        # terminal 1 — local Auth + Firestore (needs Java 11+)
+npm run dev:emulators    # terminal 2 — the app, pointed at the emulators
 ```
 
-Add your own Gemini / DeepSeek API key via the Settings modal in the running app.
+No Firebase project is needed for development. Add your own Gemini key in the app's Settings to try the AI features.
 
 ## Before you push
 
 ```bash
-npm run lint     # must pass
-npm run build    # must succeed
+npm run check            # strict type-check + lint + unit tests + build
+npm run test:rules       # if you touched firestore.rules or data access
+npm run test:e2e         # if you touched a user-facing flow
 ```
 
-CI runs both on every PR. We don't merge red builds.
+CI runs all of these on every PR. We don't merge red builds. Keep pure logic in `src/lib` without Firebase imports so it can be unit-tested, and pair any change to `firestore.rules` with a test in `tests/rules`.
 
 ## PR guidelines
 
