@@ -1,3 +1,4 @@
+import { usePageTitle } from '@/hooks/use-page-title';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Clock, Loader2, RotateCcw, Save, Sparkles } from 'lucide-react';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AppLayout } from '@/components/AppLayout';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { GeneratingPanel } from '@/components/GeneratingPanel';
 import { dataErrorMessage } from '@/lib/data-errors';
 import { IdeaCustomizationForm } from '@/components/IdeaCustomizationForm';
 import { PromptCards } from '@/components/PromptCards';
@@ -58,6 +60,15 @@ function Stepper({ current }: { current: WorkshopStep }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+function StepCaption({ current }: { current: WorkshopStep }) {
+  const index = STEPS.findIndex((s) => s.id === current);
+  return (
+    <p className="-mt-5 mb-6 text-center text-sm font-medium text-gray-600 sm:hidden">
+      Step {index + 1} of {STEPS.length} · {STEPS[index].label}
+    </p>
   );
 }
 
@@ -205,6 +216,7 @@ function IdeaCard({ idea, onCustomize, onQuickSave, busy }: { idea: Idea; onCust
 }
 
 const IdeaWorkshop = () => {
+  usePageTitle('Idea Workshop');
   const user = useUser();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<IdeaDraft>(EMPTY_DRAFT);
@@ -250,6 +262,7 @@ const IdeaWorkshop = () => {
   const run = async (kind: 'ideas' | 'prompts' | 'saving', action: () => Promise<void>, retry: NonNullable<typeof failed>) => {
     setBusy(kind);
     setError(null);
+    if (kind !== 'saving') window.scrollTo({ top: 0, behavior: 'smooth' });
     setFailed(null);
     try {
       await action();
@@ -272,6 +285,7 @@ const IdeaWorkshop = () => {
       'ideas'
     );
 
+  const generating = busy === 'ideas' || busy === 'prompts';
   const selected = draft.selectedIndex !== null ? draft.ideas[draft.selectedIndex] : null;
 
   const handleGeneratePrompts = () =>
@@ -333,6 +347,7 @@ const IdeaWorkshop = () => {
       ) : (
         <>
           <Stepper current={draft.step} />
+          <StepCaption current={draft.step} />
 
           {error ? (
             <div className="mx-auto mb-6 max-w-3xl">
@@ -340,11 +355,26 @@ const IdeaWorkshop = () => {
             </div>
           ) : null}
 
-          {draft.step === 'describe' && (
-            <DescribeStep input={draft.input} onChange={(input) => update({ ...draft, input }, false)} onSubmit={handleGenerateIdeas} busy={busy === 'ideas'} />
+          {busy === 'ideas' && (
+            <GeneratingPanel
+              title="Generating your project ideas"
+              estimate="15–30 seconds"
+              stages={['Reading your idea…', 'Sketching three different versions…', 'Choosing features and tech for each…', 'Sizing them to your experience…', 'Almost there…']}
+            />
+          )}
+          {busy === 'prompts' && (
+            <GeneratingPanel
+              title="Writing your Lovable and Cursor prompts"
+              estimate="20–40 seconds"
+              stages={['Planning the screens…', 'Writing the Lovable prompt…', 'Designing the database…', 'Writing the Cursor prompt step by step…', 'Almost there…']}
+            />
           )}
 
-          {draft.step === 'choose' && (
+          {!generating && draft.step === 'describe' && (
+            <DescribeStep input={draft.input} onChange={(input) => update({ ...draft, input }, false)} onSubmit={handleGenerateIdeas} busy={busy !== null} />
+          )}
+
+          {!generating && draft.step === 'choose' && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold">Pick the version you like best</h2>
@@ -366,14 +396,14 @@ const IdeaWorkshop = () => {
                   <ArrowLeft className="mr-1.5 h-4 w-4" /> Edit my description
                 </Button>
                 <Button variant="outline" onClick={handleGenerateIdeas} disabled={busy !== null}>
-                  {busy === 'ideas' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1.5 h-4 w-4" />}
+                  <RotateCcw className="mr-1.5 h-4 w-4" />
                   Generate 3 new ideas
                 </Button>
               </div>
             </div>
           )}
 
-          {draft.step === 'customize' && selected && (
+          {!generating && draft.step === 'customize' && selected && (
             <div className="mx-auto max-w-3xl space-y-6">
               <Button variant="ghost" onClick={() => goTo('choose')} disabled={busy !== null}>
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to ideas
@@ -386,13 +416,13 @@ const IdeaWorkshop = () => {
                 value={draft.customization}
                 onChange={(customization) => update({ ...draft, customization }, false)}
                 onSubmit={handleGeneratePrompts}
-                busy={busy === 'prompts'}
+                busy={busy !== null}
                 existingFeatures={selected.features}
               />
             </div>
           )}
 
-          {draft.step === 'prompts' && selected && draft.prompts && (
+          {!generating && draft.step === 'prompts' && selected && draft.prompts && (
             <div className="mx-auto max-w-4xl space-y-6">
               <div className="text-center">
                 <Badge className="mb-3 bg-green-100 text-green-800 hover:bg-green-100">Ready to build</Badge>

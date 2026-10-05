@@ -29,7 +29,7 @@ function OptionGrid<T extends { id: string; name: string; description: string }>
   name: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div role="radiogroup" aria-label={name} className="grid grid-cols-2 gap-2 lg:grid-cols-3">
       {options.map((o) => (
         <button
           key={o.id}
@@ -38,7 +38,7 @@ function OptionGrid<T extends { id: string; name: string; description: string }>
           aria-checked={selected === o.id}
           onClick={() => onSelect(o.id)}
           className={cn(
-            'rounded-lg border p-3 text-left transition-colors',
+            'rounded-lg border p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500',
             selected === o.id ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200' : 'border-gray-200 bg-white hover:border-gray-300'
           )}
         >
@@ -73,7 +73,7 @@ export function IdeaCustomizationForm({ value, onChange, onSubmit, busy, existin
                   aria-checked={value.colorScheme === s.id}
                   onClick={() => set('colorScheme', s.id)}
                   className={cn(
-                    'rounded-lg border p-2 text-left transition-colors',
+                    'rounded-lg border p-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500',
                     value.colorScheme === s.id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-gray-200 hover:border-gray-300'
                   )}
                 >
