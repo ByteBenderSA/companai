@@ -26,7 +26,9 @@ import { dataErrorMessage } from '@/lib/data-errors';
 import { IdeaCustomizationForm } from '@/components/IdeaCustomizationForm';
 import { Markdown } from '@/components/Markdown';
 import { MentorButton, MentorChat } from '@/components/MentorChat';
+import { BuildReport } from '@/components/BuildReport';
 import { PromptCards } from '@/components/PromptCards';
+import { withLovableAppendix } from '@/lib/prompt-appendix';
 import { useProject } from '@/hooks/use-projects';
 import { toast } from '@/hooks/use-toast';
 import { generateBuildPrompts } from '@/lib/ai';
@@ -302,12 +304,16 @@ const ProjectDetail = () => {
               </p>
             )}
             {project.prompts.lovable || project.prompts.cursor ? (
-              <PromptCards prompts={project.prompts} />
+              // Attach the build-report appendix to the Lovable prompt at copy-time so Lovable
+              // emits a parseable report at the end of its build. Cursor is untouched.
+              <PromptCards prompts={withLovableAppendix({ lovable: project.prompts.lovable ?? '', cursor: project.prompts.cursor ?? '' }, project)} />
             ) : (
               <p className="text-sm text-gray-600">No prompts saved yet.</p>
             )}
           </CardContent>
         </Card>
+
+        <BuildReport project={project} />
 
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Build guide</h2>

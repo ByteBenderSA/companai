@@ -11,6 +11,8 @@ Reversible calls made during the bootcamp-readiness cleanup (October 2026), with
 - **Extractor validator is the source of truth, not the JSON Schema.** The Gemini fallback uses a loose schema, but every path (fence or Gemini) runs through `validateParsedReport`, which drops unknown feature ids and invalid statuses silently. A hallucinating model cannot invent features that aren't on the project.
 - **Submission is one Firestore batch.** `submitBuildReport` writes the `BuildReport` doc and the project's updated `features` + `completionPct` in one `writeBatch`, so the project never shows a new status without a report row behind it.
 - **Gap prompt is deterministic.** `buildGapPrompt` is a Markdown template, not an LLM call. Zero tokens, zero latency, predictable output.
+- **UI card sits beneath the prompts, above the build guide.** That mirrors the natural flow: generate a prompt → go build → paste the output here → move on to the next guide stage. Rendered on every `ProjectDetail`, not conditionally — a quiet placeholder with the student's features is always visible, which lets them see what the project is committing to before they ever paste.
+- **The appendix is attached inside `ProjectDetail`, not persisted in `project.prompts`.** `withLovableAppendix` runs before passing prompts to `PromptCards`, so a feature rename or regeneration updates what the student copies without re-saving.
 
 ## AI
 
