@@ -251,3 +251,80 @@ test.describe('errors and edge cases', () => {
     await expect(page).toHaveURL(/\/lessons$/);
   });
 });
+
+test.describe('build report', () => {
+  test('paste → feature diff → copy fix-the-gaps prompt (clean fence, no Gemini call)', async ({ page, context }) => {
+    const gemini = await mockGemini(page);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    // Set up a project through the usual workshop flow (uses the mocked Gemini for ideas + prompts).
+    await signUp(page, 'Build Report Student');
+    await setKey(page);
+    await page.goto('/idea-workshop');
+    await page.getByLabel('App name *').fill('StudyBuddy');
+    await page.getByLabel('What does it do? *').fill('Reports progress against generated features.');
+    await page.getByRole('button', { name: 'Generate 3 project ideas' }).click();
+    await page.getByTestId('idea-card').first().getByRole('button', { name: /Quick save/ }).click();
+    await expect(page).toHaveURL(/\/projects\/[\w-]+$/);
+
+    // The Lovable prompt the student copies should include the appendix with the project's feature ids.
+    await expect(page.getByTestId('lovable-prompt')).toContainText('companai-report-v1');
+    await expect(page.getByTestId('lovable-prompt')).toContainText('"id": "f1"');
+
+    // Four features from the fixture: f1-f4. Two built, two missing.
+    const paste = [
+      'Build complete. Here is my report:',
+      '',
+      '```companai-report-v1',
+      JSON.stringify({
+        features: [
+          { id: 'f1', status: 'built' },
+          { id: 'f2', status: 'built' },
+          { id: 'f3', status: 'missing' },
+          { id: 'f4', status: 'blocked', note: 'needs Firebase configured first' },
+        ],
+        blockers: ['Firebase project not yet connected'],
+        filesChanged: ['src/pages/Dashboard.tsx'],
+      }),
+      '```',
+    ].join('\n');
+
+    const geminiCallsBefore = gemini.calls.length;
+    await page.getByTestId('build-report-paste').fill(paste);
+    await page.getByTestId('build-report-submit').click();
+
+    // After analysing, the completion % reflects 2 built out of 4 = 50 (blocked and missing both count as 0).
+    await expect(page.getByTestId('build-report-completion')).toHaveText('50%');
+
+    // Each feature row carries the right status data attribute for mobile-friendly colour semantics in tests.
+    const row = (id: string) => page.locator(`[data-testid="build-report-feature"][data-feature-id="${id}"]`);
+    await expect(row('f1')).toHaveAttribute('data-status', 'built');
+    await expect(row('f2')).toHaveAttribute('data-status', 'built');
+    await expect(row('f3')).toHaveAttribute('data-status', 'missing');
+    await expect(row('f4')).toHaveAttribute('data-status', 'blocked');
+    await expect(row('f4')).toContainText('needs Firebase configured first');
+
+    // The follow-up prompt only mentions the gaps, with the same fence token asked for again.
+    const next = page.getByTestId('build-report-next-prompt');
+    await expect(next).toBeVisible();
+    await expect(next).toContainText('In-app chat');
+    await expect(next).toContainText('Shared calendar');
+    await expect(next).not.toContainText('Course matching');
+    await expect(next).toContainText('companai-report-v1');
+
+    // Copy the follow-up prompt and verify it actually landed in the clipboard.
+    await next.getByRole('button', { name: /Copy prompt/ }).click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain('Follow-up build prompt');
+    expect(copied).toContain('In-app chat');
+
+    // The fence path must not have called Gemini — the extractor was pure.
+    expect(gemini.calls.length).toBe(geminiCallsBefore);
+
+    // Round-trip: reloading the page keeps the new statuses and shows one history entry.
+    await page.reload();
+    await expect(page.getByTestId('build-report-completion')).toHaveText('50%');
+    await expect(row('f1')).toHaveAttribute('data-status', 'built');
+    await expect(page.getByRole('button', { name: /^Previous reports/i }).or(page.getByText(/Previous reports/))).toBeVisible();
+  });
+});
