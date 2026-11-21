@@ -32,6 +32,7 @@ import { toast } from '@/hooks/use-toast';
 import { generateBuildPrompts } from '@/lib/ai';
 import { BUILD_STEPS } from '@/lib/build-steps';
 import { ideaFromProject, projectStatus, type BuildStepId, type Project } from '@/lib/project-model';
+import { featureLabels } from '@/lib/build-report-model';
 import { deleteProject, saveProjectPrompts, setProjectStep } from '@/lib/projects';
 import { DEFAULT_CUSTOMIZATION, type Customization } from '@/lib/prompts';
 
@@ -63,7 +64,7 @@ function RegenerateDialog({ project, open, onOpenChange }: { project: Project; o
           <DialogDescription>Choose the look and features, and the AI writes fresh Lovable and Cursor prompts. Your current prompts are replaced.</DialogDescription>
         </DialogHeader>
         {error ? <ErrorNotice error={error} onRetry={() => void submit()} /> : null}
-        <IdeaCustomizationForm value={customization} onChange={setCustomization} onSubmit={() => void submit()} busy={busy} existingFeatures={project.features} />
+        <IdeaCustomizationForm value={customization} onChange={setCustomization} onSubmit={() => void submit()} busy={busy} existingFeatures={featureLabels(project.features)} />
       </DialogContent>
     </Dialog>
   );
@@ -272,7 +273,7 @@ const ProjectDetail = () => {
               <summary className="cursor-pointer font-medium">Features ({project.features.length})</summary>
               <ul className="mt-2 list-disc space-y-1 pl-5">
                 {project.features.map((f) => (
-                  <li key={f}>{f}</li>
+                  <li key={f.id}>{f.label}</li>
                 ))}
               </ul>
             </details>

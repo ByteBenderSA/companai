@@ -1,5 +1,12 @@
 // Pure project model: shape, legacy-document normalisation and derived status.
 // No Firebase imports so it stays unit-testable.
+import {
+  computeCompletionPct,
+  featureLabels,
+  normalizeFeatures,
+  toProjectFeatures,
+  type ProjectFeature,
+} from './build-report-model';
 import type { Difficulty, Idea } from './ideas';
 import type { BuildPrompts, Customization } from './prompts';
 
@@ -13,7 +20,12 @@ export interface Project {
   ownerId: string;
   title: string;
   description: string;
-  features: string[];
+  /**
+   * Structured features with per-feature build status. Legacy documents store
+   * `features: string[]`; `normalizeProject` promotes them to this shape on
+   * read, so no migration script is needed.
+   */
+  features: ProjectFeature[];
   techStack: string[];
   difficulty: Difficulty;
   timeEstimate: string;
@@ -23,6 +35,8 @@ export interface Project {
   promptsSource: 'ai' | 'template';
   customization?: Customization;
   completedSteps: BuildStepId[];
+  /** Percent of features marked `built` or `partial` (rounded). Set by the build-report flow. */
+  completionPct?: number;
   createdAt: Date | null;
   updatedAt: Date | null;
 }
@@ -79,12 +93,14 @@ function readDifficulty(v: unknown): Difficulty {
 
 /** Turn a Firestore document (current or legacy shape) into a Project. */
 export function normalizeProject(id: string, data: Record<string, unknown>): Project {
+  const features = normalizeFeatures(data.features);
+  const storedPct = typeof data.completionPct === 'number' ? Math.round(data.completionPct) : undefined;
   return {
     id,
     ownerId: str(data.ownerId),
     title: str(data.title, 'Untitled project'),
     description: str(data.description),
-    features: strings(data.features),
+    features,
     techStack: strings(data.techStack),
     difficulty: readDifficulty(data.difficulty),
     timeEstimate: str(data.timeEstimate),
@@ -93,6 +109,8 @@ export function normalizeProject(id: string, data: Record<string, unknown>): Pro
     promptsSource: data.promptsSource === 'template' ? 'template' : 'ai',
     customization: (data.customization as Customization | undefined) ?? undefined,
     completedSteps: readSteps(data),
+    // Prefer the stored percent; if absent (legacy or pre-report project), derive from statuses.
+    completionPct: storedPct ?? (features.some((f) => f.status !== 'pending') ? computeCompletionPct(features) : undefined),
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   };
@@ -117,7 +135,7 @@ export function newProjectFields(ownerId: string, idea: Idea, prompts: BuildProm
     ownerId,
     title: idea.title,
     description: idea.description,
-    features: idea.features,
+    features: toProjectFeatures(idea.features),
     techStack: idea.techStack,
     difficulty: idea.difficulty,
     timeEstimate: idea.timeEstimate,
@@ -134,7 +152,7 @@ export function ideaFromProject(p: Project): Idea {
   return {
     title: p.title,
     description: p.description,
-    features: p.features,
+    features: featureLabels(p.features),
     techStack: p.techStack,
     difficulty: p.difficulty,
     timeEstimate: p.timeEstimate,

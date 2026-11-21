@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeProject, projectStatus, timeAgo, toDate, toggleStep } from '@/lib/project-model';
+import { ideaFromProject, newProjectFields, normalizeProject, projectStatus, timeAgo, toDate, toggleStep } from '@/lib/project-model';
 
 describe('normalizeProject', () => {
-  it('reads a legacy document (numbered steps, generatedPrompts, ISO dates)', () => {
+  it('reads a legacy document (numbered steps, generatedPrompts, ISO dates, string[] features)', () => {
     const p = normalizeProject('p1', {
       ownerId: 'u1',
       title: 'Old project',
@@ -15,7 +15,9 @@ describe('normalizeProject', () => {
     });
     expect(p.completedSteps).toEqual(['lovable', 'cursor']);
     expect(p.prompts).toEqual({ lovable: 'L', cursor: 'C' });
-    expect(p.features).toEqual(['a']);
+    // Legacy string[] features are promoted to ProjectFeature[] with generated ids and pending status.
+    expect(p.features).toEqual([{ id: 'f1', label: 'a', status: 'pending' }]);
+    expect(p.completionPct).toBeUndefined();
     expect(p.difficulty).toBe('Beginner');
     expect(p.createdAt?.toISOString()).toBe('2025-07-01T10:00:00.000Z');
     expect(p.promptsSource).toBe('ai');
@@ -34,10 +36,71 @@ describe('normalizeProject', () => {
     expect(p.promptsSource).toBe('template');
   });
 
+  it('reads structured features and keeps per-feature status, with completionPct derived when absent', () => {
+    const p = normalizeProject('p4', {
+      title: 'Reported',
+      features: [
+        { id: 'f1', label: 'Chat', status: 'built' },
+        { id: 'f2', label: 'Profile', status: 'partial', note: 'avatar missing' },
+        { id: 'f3', label: 'Map', status: 'missing' },
+      ],
+    });
+    expect(p.features[0]).toEqual({ id: 'f1', label: 'Chat', status: 'built' });
+    expect(p.features[1].note).toBe('avatar missing');
+    expect(p.completionPct).toBe(50); // 1 + 0.5 + 0 of 3 = 50%
+  });
+
+  it('prefers the stored completionPct over the derived one', () => {
+    const p = normalizeProject('p5', {
+      title: 'Stored pct',
+      features: [{ id: 'f1', label: 'Chat', status: 'built' }],
+      completionPct: 73,
+    });
+    expect(p.completionPct).toBe(73);
+  });
+
   it('survives an empty document', () => {
     const p = normalizeProject('p3', {});
     expect(p.title).toBe('Untitled project');
+    expect(p.features).toEqual([]);
+    expect(p.completionPct).toBeUndefined();
     expect(p.updatedAt).toBeNull();
+  });
+});
+
+describe('newProjectFields', () => {
+  it('converts the idea\'s string[] features into structured ProjectFeature[]', () => {
+    const fields = newProjectFields(
+      'alice',
+      {
+        title: 'StudyBuddy',
+        description: 'd',
+        features: ['Chat', 'Profile'],
+        techStack: ['React'],
+        difficulty: 'Beginner',
+        timeEstimate: '1 week',
+        learningObjectives: [],
+      },
+      { lovable: 'L', cursor: 'C' },
+      'ai'
+    );
+    expect(fields.features).toEqual([
+      { id: 'f1', label: 'Chat', status: 'pending' },
+      { id: 'f2', label: 'Profile', status: 'pending' },
+    ]);
+  });
+});
+
+describe('ideaFromProject', () => {
+  it('round-trips a project back to an idea using feature labels only', () => {
+    const p = normalizeProject('p1', {
+      title: 'T',
+      features: [
+        { id: 'f1', label: 'Chat', status: 'built' },
+        { id: 'f2', label: 'Profile', status: 'partial' },
+      ],
+    });
+    expect(ideaFromProject(p).features).toEqual(['Chat', 'Profile']);
   });
 });
 

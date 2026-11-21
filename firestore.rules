@@ -31,6 +31,9 @@ service cloud.firestore {
     // projects/{id}: a saved idea, its prompts and build progress.
     match /projects/{projectId} {
       function validProject(d) {
+        // `features` can be a legacy list of strings or the current list of
+        // ProjectFeature maps. The size cap applies either way; per-entry
+        // shape is enforced by the client model + validated on read.
         return shortString(d.title, 200)
           && shortString(d.get('description', ''), 2000)
           && d.get('features', []) is list && d.get('features', []).size() <= 30
@@ -38,7 +41,10 @@ service cloud.firestore {
           && d.get('completedSteps', []) is list && d.get('completedSteps', []).size() <= 10
           && d.get('prompts', {}) is map
           && shortString(d.get('prompts', {}).get('lovable', ''), 60000)
-          && shortString(d.get('prompts', {}).get('cursor', ''), 60000);
+          && shortString(d.get('prompts', {}).get('cursor', ''), 60000)
+          && d.get('completionPct', 0) is number
+          && d.get('completionPct', 0) >= 0
+          && d.get('completionPct', 0) <= 100;
       }
 
       allow read, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
@@ -49,6 +55,42 @@ service cloud.firestore {
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId
         && validProject(request.resource.data);
+
+      // projects/{id}/buildReports/{reportId}: the student's paste of a Lovable
+      // or Cursor response, plus the parsed per-feature result. Owner-only.
+      // Writes come from the client (CompanAI is serverless and BYO-key).
+      match /buildReports/{reportId} {
+        function validBuildReport(d) {
+          return shortString(d.get('source', ''), 20)
+            && shortString(d.get('extractionSource', ''), 20)
+            && shortString(d.get('rawPaste', ''), 60000)
+            && d.get('parsedFeatures', []) is list
+            && d.get('parsedFeatures', []).size() <= 30
+            && d.get('blockers', []) is list
+            && d.get('blockers', []).size() <= 20
+            && d.get('filesChanged', []) is list
+            && d.get('filesChanged', []).size() <= 100
+            && shortString(d.get('suggestedNextPrompt', ''), 60000);
+        }
+
+        function parentOwner() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+        }
+
+        allow read, delete: if signedIn()
+          && resource.data.ownerId == request.auth.uid
+          && resource.data.ownerId == parentOwner();
+        allow create: if signedIn()
+          && request.resource.data.ownerId == request.auth.uid
+          && request.resource.data.ownerId == parentOwner()
+          && request.resource.data.projectId == projectId
+          && validBuildReport(request.resource.data);
+        allow update: if signedIn()
+          && resource.data.ownerId == request.auth.uid
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.projectId == resource.data.projectId
+          && validBuildReport(request.resource.data);
+      }
     }
 
     // ideaDrafts/{uid}: the Idea Workshop's in-progress state (one per user).
