@@ -1,4 +1,5 @@
 // System prompt for the chat mentor. Pure — no Firebase imports.
+import { featureLabels } from './build-report-model';
 import { BUILD_STEPS } from './build-steps';
 import type { Project } from './project-model';
 
@@ -22,7 +23,8 @@ export function buildMentorSystemPrompt(project?: Project | null): string {
     `- Title: ${project.title}`,
     `- Description: ${project.description}`,
   ];
-  if (project.features.length) lines.push(`- Features: ${project.features.join('; ')}`);
+  const labels = featureLabels(project.features);
+  if (labels.length) lines.push(`- Features: ${labels.join('; ')}`);
   if (project.techStack.length) lines.push(`- Tech: ${project.techStack.join(', ')}`);
   lines.push(
     `- Build progress: ${project.completedSteps.length} of ${BUILD_STEPS.length} stages done` +

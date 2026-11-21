@@ -2,6 +2,12 @@
 
 Reversible calls made during the bootcamp-readiness cleanup (October 2026), with the reasoning. Change any of them freely.
 
+## Build Report (November 2026 — in progress)
+
+- **`Project.features` is now `ProjectFeature[]`** (`{ id, label, status, note? }`) in place of `string[]`. Stable per-feature ids let a parsed build report write status back without fuzzy string matching. `normalizeProject` promotes legacy `string[]` documents on read, so no migration script runs and older projects stay editable.
+- **`projects/{id}/buildReports/{reportId}` sub-collection** holds the student's paste of a Lovable or Cursor response plus the parsed per-feature result. Rules are owner-only, with the report's `projectId` and `ownerId` both required to match the parent. All writes are client-side, in line with the serverless/BYO-key model.
+- **Fence token `companai-report-v1`.** The Lovable/Cursor prompt appendix (next PR) asks the builder to emit JSON inside that fence; the client parses it directly. When the fence is missing we fall back to a Gemini call with the student's own key.
+
 ## AI
 
 - **Default model `gemini-3.8-flash`, overridable in Settings → Advanced.** The previous `gemini-2.0-flash` was shut down by Google on 2026-06-01, which broke idea generation entirely. 3.8 Flash is Google's current recommended Flash model and is on the free tier; 2.5 models are restricted to existing users. The override exists so the next retirement doesn't need a redeploy.
